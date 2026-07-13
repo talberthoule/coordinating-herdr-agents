@@ -1,8 +1,18 @@
 # Herdr Agent Coordination
 
-Herdr Agent Coordination lets Codex and Claude Code sessions share work without guessing who owns a task. It gives each session a local protocol for discovering active work, avoiding duplicate edits, sending source-attributed handoffs, and reviewing a token-protected activity trail.
+Multiple agents can move faster than one agent, but only when they can see who owns each lane. Without that shared context, parallel work turns into duplicate edits, stale plans, hidden terminal state, and risky Git moves.
+
+Herdr Agent Coordination is a Codex and Claude Code plugin for using Herdr as shared working context. It gives each session a local protocol for discovering active work, avoiding duplicate edits, choosing between inline work, helper subagents, and visible Herdr lanes, sending source-attributed handoffs, and reviewing a token-protected activity trail.
 
 It is deliberately small: Herdr remains the coordination layer, and this project adds skill instructions plus audited hooks around the Herdr CLI.
+
+## What, So What, Now What
+
+| Question | Answer |
+|---|---|
+| What? | A coordination skill plus audited hooks for Codex and Claude Code sessions working inside Herdr. |
+| So what? | Teams can add agent processing power without losing ownership, context, handoff traceability, or shared-worktree safety. |
+| Now what? | Install the plugin, ask new sessions to use it before shared-repo work, and let the skill decide when to stay inline, use a subagent, or branch into another visible Herdr lane. |
 
 ## Install
 
