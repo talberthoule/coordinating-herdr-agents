@@ -2,7 +2,7 @@
 param([switch]$PurgeAuditHistory)
 
 $ErrorActionPreference = 'Stop'
-$skillRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
+$skillRoot = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) 'skills\coordinating-herdr-agents'
 $codexHome = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $HOME '.codex' }
 $claudeHome = Join-Path $HOME '.claude'
 $codexHooks = Join-Path $codexHome 'hooks.json'

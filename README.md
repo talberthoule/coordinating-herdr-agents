@@ -13,16 +13,10 @@ No orchestration framework is added: Herdr remains the coordination layer and th
 
 ## Install
 
-Clone or copy this repository to:
-
-```text
-%USERPROFILE%\.codex\skills\coordinating-herdr-agents
-```
-
-Then run:
+Clone this repository, then run:
 
 ```powershell
-& "$HOME\.codex\skills\coordinating-herdr-agents\scripts\install.ps1"
+./install.ps1
 ```
 
 The installer preserves existing profile hooks, configures the audited coordination hooks for both runtimes, and shares the Codex skill with Claude Code through a junction. If prompted, enable `hooks = true` under `[features]` in `~/.codex/config.toml`, then review and trust the hooks in a fresh Codex session with `/hooks`.
@@ -47,7 +41,7 @@ node --test --test-concurrency=1 tests/*.test.mjs
 ## Uninstall
 
 ```powershell
-& "$HOME\.codex\skills\coordinating-herdr-agents\scripts\uninstall.ps1"
+./uninstall.ps1
 ```
 
 Add `-PurgeAuditHistory` only when you also want to delete the local audit log.

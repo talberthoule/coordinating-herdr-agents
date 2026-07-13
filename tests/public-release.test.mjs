@@ -44,6 +44,15 @@ test('marketplace manifests expose the herdr plugin id', async () => {
   assert.equal(claudeMarket.plugins[0].name, 'coordinating-herdr-agents');
 });
 
+test('root Windows installers resolve the canonical skill runtime', async () => {
+  const install = await readFile(join(root, 'install.ps1'), 'utf8');
+  const uninstall = await readFile(join(root, 'uninstall.ps1'), 'utf8');
+  assert.match(install, /skills\\coordinating-herdr-agents/);
+  assert.match(uninstall, /skills\\coordinating-herdr-agents/);
+  assert.match(install, /scripts\\configure-hooks\.mjs/);
+  assert.match(uninstall, /scripts\\configure-hooks\.mjs/);
+});
+
 test('public repository excludes private local identifiers', async () => {
   const forbidden = ['Pres' + 'idio', 'Anlysis' + '-Inference-Engine', 'C:' + '\\Users\\'];
   const pending = [root];
