@@ -28,12 +28,15 @@ Review and trust the installed hooks through the normal host prompt. The hooks a
 
 Start a new agent session and ask it to use Herdr Agent Coordination before editing a shared repository. The skill will inspect Herdr first, read relevant panes, and only send an audited message when another session owns overlapping work or has context worth preserving.
 
+It also helps decide when to keep work inline, when a short-lived subagent is enough, and when to branch into another visible Herdr lane for durable parallel work. That lets teams add processing power without losing ownership, context, or merge safety.
+
 The local activity viewer opens for proactive handoffs. It shows the newest events first, can delete one complete coordination action, and has a `Delete all history` control for clearing local audit history.
 
 ## Use Cases
 
 - discover active and paused work before starting a duplicate task;
 - resume the correct session instead of opening a competing lane;
+- choose when to stay inline, use a helper subagent, or expand into another coordinated lane;
 - send source-attributed handoffs that include the originating tab and pane;
 - divide feature, review, and investigation lanes across Codex and Claude Code;
 - catch shared-worktree conflicts before checkout, merge, or stash moves another agent's work;
