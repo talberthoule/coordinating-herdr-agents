@@ -1,0 +1,108 @@
+import assert from 'node:assert/strict';
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import test from 'node:test';
+
+import { listAuditEvents } from '../scripts/core.mjs';
+import { handleHookPayload } from '../scripts/hook-lib.mjs';
+
+const request = {
+  origin: 'proactive',
+  action: 'herdr.exec',
+  args: ['agent', 'send', 'w2:p1', 'Please resume the installer build.'],
+  target: { type: 'agent', id: 'w2:p1' },
+  reason: 'Avoid duplicated work',
+  message: 'Please resume the installer build.',
+};
+
+const commandFor = (value) => `@'\n${JSON.stringify(value)}\n'@ | node "C:\\skill\\coordinate.mjs" --stdin`;
+
+async function stateDir() {
+  return mkdtemp(join(tmpdir(), 'herdr-hook-'));
+}
+
+test('read-only inspection is ignored by the audit hook', async () => {
+  const dir = await stateDir();
+  const result = await handleHookPayload({
+    hook_event_name: 'PreToolUse',
+    tool_name: 'Bash',
+    tool_input: { command: 'herdr api snapshot' },
+  }, { runtime: 'codex', stateDir: dir, launchViewer: false });
+  assert.equal(result.output, undefined);
+  assert.deepEqual(await listAuditEvents(dir), []);
+});
+
+test('raw mutation is denied before execution', async () => {
+  const result = await handleHookPayload({
+    hook_event_name: 'PreToolUse',
+    tool_name: 'Bash',
+    tool_input: { command: 'herdr agent send w2:p1 continue' },
+  }, { runtime: 'claude-code', stateDir: await stateDir(), launchViewer: false });
+  assert.equal(result.output.hookSpecificOutput.permissionDecision, 'deny');
+  assert.match(result.output.hookSpecificOutput.permissionDecisionReason, /audited wrapper/i);
+});
+
+test('proactive wrapper request is logged and viewer is activated', async () => {
+  const dir = await stateDir();
+  let activations = 0;
+  const result = await handleHookPayload({
+    hook_event_name: 'PreToolUse',
+    tool_name: 'Bash',
+    tool_use_id: 'tool-123',
+    session_id: 'session-1',
+    turn_id: 'turn-1',
+    tool_input: { command: commandFor(request) },
+  }, { runtime: 'codex', sourceId: 'w1:pH', stateDir: dir, launchViewer: true, ensureViewer: async () => { activations += 1; } });
+  assert.equal(result.output, undefined);
+  assert.equal(activations, 1);
+  const [event] = await listAuditEvents(dir);
+  assert.equal(event.phase, 'attempted');
+  assert.equal(event.event_id, 'tool-123');
+  assert.deepEqual(event.source, { type: 'agent', id: 'w1:pH' });
+  assert.deepEqual(event.target, { type: 'agent', id: 'w2:p1' });
+  assert.equal(event.message_redacted, request.message);
+});
+
+test('user-directed wrapper request is logged without opening viewer', async () => {
+  const dir = await stateDir();
+  let activations = 0;
+  await handleHookPayload({
+    hook_event_name: 'PreToolUse',
+    tool_name: 'Bash',
+    tool_use_id: 'tool-user',
+    tool_input: { command: commandFor({ ...request, origin: 'user-directed' }) },
+  }, { runtime: 'claude-code', stateDir: dir, launchViewer: true, ensureViewer: async () => { activations += 1; } });
+  assert.equal(activations, 0);
+  assert.equal((await listAuditEvents(dir))[0].origin, 'user-directed');
+});
+
+test('post success and failure append outcome phases', async () => {
+  const dir = await stateDir();
+  for (const [eventName, toolUseId, response, phase] of [
+    ['PostToolUse', 'tool-ok', { exit_code: 0, output: 'sent' }, 'succeeded'],
+    ['PostToolUseFailure', 'tool-bad', { exit_code: 1, error: 'offline' }, 'failed'],
+  ]) {
+    await handleHookPayload({
+      hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_use_id: toolUseId,
+      tool_input: { command: commandFor(request) },
+    }, { runtime: 'claude-code', stateDir: dir, launchViewer: false });
+    await handleHookPayload({
+      hook_event_name: eventName, tool_name: 'Bash', tool_use_id: toolUseId,
+      tool_input: { command: commandFor(request) }, tool_response: response,
+    }, { runtime: 'claude-code', stateDir: dir, launchViewer: false });
+    const events = await listAuditEvents(dir);
+    assert.equal(events.at(-1).phase, phase);
+  }
+});
+
+test('secret-bearing wrapper request is denied without storing the secret', async () => {
+  const dir = await stateDir();
+  const secret = 'token=ghp_1234567890abcdefghijklmnopqrstuvwxyz';
+  const result = await handleHookPayload({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_use_id: 'secret-tool',
+    tool_input: { command: commandFor({ ...request, args: ['agent', 'send', 'w2:p1', secret], message: secret }) },
+  }, { runtime: 'codex', stateDir: dir, launchViewer: false });
+  assert.equal(result.output.hookSpecificOutput.permissionDecision, 'deny');
+  assert.doesNotMatch(JSON.stringify(await listAuditEvents(dir)), /ghp_1234567890/);
+});

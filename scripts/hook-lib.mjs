@@ -1,0 +1,142 @@
+import { randomBytes } from 'node:crypto';
+import { mkdir, open, readFile, rm, stat } from 'node:fs/promises';
+import { join } from 'node:path';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+import { appendAuditEvent, classifyShellCommand, defaultStateDir, redactOutboundText, validateCoordinationRequest } from './core.mjs';
+
+const hereStringPattern = /@'\s*\r?\n([\s\S]*?)\r?\n'@\s*\|\s*node\b[\s\S]*coordinate\.mjs\b[\s\S]*--stdin/i;
+
+export function extractCoordinationRequest(command) {
+  const match = String(command || '').match(hereStringPattern);
+  if (!match) throw new Error('audited wrapper requires a single-quoted PowerShell here-string containing JSON');
+  return JSON.parse(match[1]);
+}
+
+function deny(reason) {
+  return {
+    hookSpecificOutput: {
+      hookEventName: 'PreToolUse',
+      permissionDecision: 'deny',
+      permissionDecisionReason: reason,
+    },
+    systemMessage: reason,
+  };
+}
+
+function outcome(payload) {
+  const value = payload.tool_response ?? payload.tool_result ?? payload.error ?? '';
+  const text = typeof value === 'string' ? value : JSON.stringify(value);
+  const failed = payload.hook_event_name === 'PostToolUseFailure'
+    || /"(?:exit_code|exitCode)"\s*:\s*[1-9]/.test(text)
+    || /(?:^|\s)(?:error|failed):/i.test(text);
+  return { phase: failed ? 'failed' : 'succeeded', summary: redactOutboundText(text.slice(0, 1000)).redacted };
+}
+
+export async function ensureAuditViewer(stateDir = defaultStateDir(), { openBrowser = true } = {}) {
+  await mkdir(stateDir, { recursive: true });
+  const viewerPath = join(stateDir, 'viewer.json');
+  const healthyViewer = async () => {
+    try {
+      const value = JSON.parse(await readFile(viewerPath, 'utf8'));
+      const health = await fetch(`${value.url}/health?token=${encodeURIComponent(value.token)}`, { signal: AbortSignal.timeout(750) });
+      return health.ok ? value : undefined;
+    } catch { return undefined; }
+  };
+
+  let existing = await healthyViewer();
+  if (!existing) {
+    const lockPath = join(stateDir, '.viewer-start.lock');
+    let lock;
+    const lockDeadline = Date.now() + 7000;
+    while (!lock) {
+      try { lock = await open(lockPath, 'wx'); }
+      catch (error) {
+        if (error.code !== 'EEXIST' || Date.now() >= lockDeadline) throw error;
+        try {
+          if (Date.now() - (await stat(lockPath)).mtimeMs > 30_000) await rm(lockPath, { force: true });
+        } catch (lockError) { if (lockError.code !== 'ENOENT') throw lockError; }
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    }
+    try {
+      existing = await healthyViewer();
+      if (!existing) {
+        const token = randomBytes(24).toString('base64url');
+        const serverPath = fileURLToPath(new URL('./audit-server.mjs', import.meta.url));
+        const child = spawn(process.execPath, [serverPath], {
+          detached: true, stdio: 'ignore', windowsHide: true,
+          env: { ...process.env, HERDR_COORDINATION_STATE_DIR: stateDir, HERDR_COORDINATION_VIEWER_TOKEN: token },
+        });
+        child.unref();
+        const deadline = Date.now() + 5000;
+        while (Date.now() < deadline && !(existing = await healthyViewer())) {
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+        if (!existing) throw new Error('audit viewer did not start');
+      }
+    } finally {
+      await lock.close();
+      await rm(lockPath, { force: true });
+    }
+  }
+
+  const url = `${existing.url}/?token=${encodeURIComponent(existing.token)}`;
+  if (openBrowser && process.platform === 'win32') {
+    try {
+      const browser = spawn('cmd.exe', ['/d', '/c', 'start', '', url], { detached: true, stdio: 'ignore', windowsHide: true });
+      browser.unref();
+    } catch { process.stderr.write(`Herdr coordination audit: ${url}\n`); }
+  }
+  return url;
+}
+
+export async function handleHookPayload(payload, options = {}) {
+  const runtime = options.runtime || 'unknown';
+  const stateDir = options.stateDir || defaultStateDir();
+  const eventName = payload.hook_event_name || payload.event || '';
+  const command = payload.tool_input?.command || payload.input?.command || '';
+  const classification = classifyShellCommand(command);
+  if (classification.kind === 'other' || classification.kind === 'read') return {};
+  if (eventName === 'PreToolUse' && classification.kind === 'raw-mutation') {
+    return { output: deny('Raw Herdr mutations are blocked. Use the coordinating-herdr-agents audited wrapper.') };
+  }
+  if (classification.kind !== 'wrapper') return {};
+
+  let request;
+  try {
+    request = validateCoordinationRequest(extractCoordinationRequest(command));
+  } catch (error) {
+    return eventName === 'PreToolUse' ? { output: deny(error.message) } : {};
+  }
+  const redaction = redactOutboundText(request.message || '');
+  const sourceId = options.sourceId || process.env.HERDR_PANE_ID;
+  const base = {
+    schema_version: 1,
+    event_id: payload.tool_use_id || payload.toolUseId,
+    runtime,
+    session_id: payload.session_id,
+    turn_id: payload.turn_id,
+    tool_use_id: payload.tool_use_id || payload.toolUseId,
+    origin: request.origin,
+    action: request.action,
+    source: sourceId ? { type: 'agent', id: sourceId } : { type: 'runtime', id: runtime },
+    target: request.target,
+    reason: request.reason,
+    message_redacted: redaction.redacted,
+    message_sha256: redaction.sha256,
+  };
+  if (eventName === 'PreToolUse') {
+    await appendAuditEvent(stateDir, { ...base, phase: 'attempted' });
+    if (request.origin === 'proactive' && options.launchViewer !== false) {
+      await (options.ensureViewer || ensureAuditViewer)(stateDir);
+    }
+    return {};
+  }
+  if (eventName === 'PostToolUse' || eventName === 'PostToolUseFailure') {
+    const result = outcome(payload);
+    await appendAuditEvent(stateDir, { ...base, phase: result.phase, outcome_summary: result.summary });
+  }
+  return {};
+}
