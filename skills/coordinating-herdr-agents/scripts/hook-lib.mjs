@@ -6,12 +6,22 @@ import { fileURLToPath } from 'node:url';
 
 import { appendAuditEvent, classifyShellCommand, defaultStateDir, redactOutboundText, validateCoordinationRequest } from './core.mjs';
 
-const hereStringPattern = /@'\s*\r?\n([\s\S]*?)\r?\n'@\s*\|\s*node\b[\s\S]*coordinate\.mjs\b[\s\S]*--stdin/i;
+const wrapperPatterns = [
+  {
+    pattern: /@'\s*\r?\n([\s\S]*?)\r?\n'@\s*\|\s*node\b[\s\S]*coordinate\.mjs\b[\s\S]*--stdin/i,
+  },
+  {
+    pattern: /node\b[\s\S]*coordinate\.mjs\b[\s\S]*--stdin[\s\S]*<<'([A-Za-z_][A-Za-z0-9_-]*)'\s*\r?\n([\s\S]*?)\r?\n\1\b/i,
+    group: 2,
+  },
+];
 
 export function extractCoordinationRequest(command) {
-  const match = String(command || '').match(hereStringPattern);
-  if (!match) throw new Error('audited wrapper requires a single-quoted PowerShell here-string containing JSON');
-  return JSON.parse(match[1]);
+  for (const candidate of wrapperPatterns) {
+    const match = String(command || '').match(candidate.pattern);
+    if (match) return JSON.parse(match[candidate.group || 1]);
+  }
+  throw new Error('audited wrapper requires literal JSON through a PowerShell here-string or POSIX heredoc');
 }
 
 function deny(reason) {

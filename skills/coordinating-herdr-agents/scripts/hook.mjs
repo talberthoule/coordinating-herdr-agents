@@ -9,8 +9,14 @@ async function stdin() {
   return Buffer.concat(chunks).toString('utf8');
 }
 
+export function runtimeFromEnvironment(env = process.env) {
+  if (env.PLUGIN_ROOT) return 'codex';
+  if (env.CLAUDE_PLUGIN_ROOT) return 'claude-code';
+  return 'unknown';
+}
+
 async function main() {
-  const runtime = process.argv[2] || 'unknown';
+  const runtime = process.argv[2] || runtimeFromEnvironment();
   const payload = JSON.parse(await stdin());
   const result = await handleHookPayload(payload, { runtime });
   if (result.output) process.stdout.write(JSON.stringify(result.output));

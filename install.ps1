@@ -10,32 +10,42 @@ $claudeSettings = Join-Path $claudeHome 'settings.json'
 $claudeSkills = Join-Path $claudeHome 'skills'
 $claudeLink = Join-Path $claudeSkills 'coordinating-herdr-agents'
 $stateDir = Join-Path $env:LOCALAPPDATA 'Herdr\coordination-audit'
+$codexInstalled = [bool](Get-Command codex -ErrorAction SilentlyContinue)
+$claudeInstalled = [bool](Get-Command claude -ErrorAction SilentlyContinue)
 
-foreach ($command in @('node', 'herdr', 'codex', 'claude')) {
+if (-not $codexInstalled -and -not $claudeInstalled) {
+    throw 'Neither Codex nor Claude Code is available on PATH.'
+}
+
+foreach ($command in @('node', 'herdr')) {
     if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
         throw "Required command is not available on PATH: $command"
     }
 }
 
 New-Item -ItemType Directory -Force -Path $codexHome, $claudeHome, $claudeSkills, $stateDir | Out-Null
-& node (Join-Path $skillRoot 'scripts\configure-hooks.mjs') install $codexHooks $claudeSettings $skillRoot
+$codexArg = if ($codexInstalled) { $codexHooks } else { '-' }
+$claudeArg = if ($claudeInstalled) { $claudeSettings } else { '-' }
+& node (Join-Path $skillRoot 'scripts\configure-hooks.mjs') install $codexArg $claudeArg $skillRoot
 if ($LASTEXITCODE -ne 0) { throw 'Failed to configure Codex and Claude Code hooks.' }
 
-if (Test-Path -LiteralPath $claudeLink) {
-    $item = Get-Item -LiteralPath $claudeLink -Force
-    $targets = @($item.Target | ForEach-Object { [IO.Path]::GetFullPath($_) })
-    if ($item.LinkType -ne 'Junction' -or $targets -notcontains [IO.Path]::GetFullPath($skillRoot)) {
-        throw "Claude skill path already exists and is not the expected junction: $claudeLink"
+if ($claudeInstalled) {
+    if (Test-Path -LiteralPath $claudeLink) {
+        $item = Get-Item -LiteralPath $claudeLink -Force
+        $targets = @($item.Target | ForEach-Object { [IO.Path]::GetFullPath($_) })
+        if ($item.LinkType -ne 'Junction' -or $targets -notcontains [IO.Path]::GetFullPath($skillRoot)) {
+            throw "Claude skill path already exists and is not the expected junction: $claudeLink"
+        }
+    } else {
+        New-Item -ItemType Junction -Path $claudeLink -Target $skillRoot | Out-Null
     }
-} else {
-    New-Item -ItemType Junction -Path $claudeLink -Target $skillRoot | Out-Null
 }
 
 $codexConfig = Join-Path $codexHome 'config.toml'
-if (-not (Test-Path -LiteralPath $codexConfig) -or -not (Select-String -LiteralPath $codexConfig -Pattern '^\s*hooks\s*=\s*true\s*$' -Quiet)) {
+if ($codexInstalled -and (-not (Test-Path -LiteralPath $codexConfig) -or -not (Select-String -LiteralPath $codexConfig -Pattern '^\s*hooks\s*=\s*true\s*$' -Quiet))) {
     Write-Warning 'Codex hooks are not enabled in config.toml. Add `hooks = true` under `[features]`.'
 }
 
-Write-Host "Installed coordinating-herdr-agents for Codex and Claude Code."
+Write-Host 'Installed coordinating-herdr-agents.'
 Write-Host "Shared audit state: $stateDir"
-Write-Host 'In a fresh Codex session, run /hooks and explicitly trust the new profile hooks. This installer does not bypass trust review.'
+Write-Host 'Review and trust the new hooks in a fresh host session. This installer does not bypass trust review.'

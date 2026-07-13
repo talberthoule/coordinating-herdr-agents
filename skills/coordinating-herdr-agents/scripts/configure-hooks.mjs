@@ -37,35 +37,47 @@ function remove(value, eventName, command) {
 }
 
 export async function installHooks({ codexPath, claudePath, skillRoot }) {
-  const codex = await readJson(codexPath);
-  const codexCommand = commandFor(skillRoot, 'codex');
-  for (const event of ['PreToolUse', 'PostToolUse']) add(codex, event, codexCommand);
-  await save(codexPath, codex);
+  if (codexPath) {
+    const codex = await readJson(codexPath);
+    const codexCommand = commandFor(skillRoot, 'codex');
+    for (const event of ['PreToolUse', 'PostToolUse']) add(codex, event, codexCommand);
+    await save(codexPath, codex);
+  }
 
-  const claude = await readJson(claudePath);
-  const claudeCommand = commandFor(skillRoot, 'claude-code');
-  for (const event of ['PreToolUse', 'PostToolUse', 'PostToolUseFailure']) add(claude, event, claudeCommand);
-  await save(claudePath, claude);
+  if (claudePath) {
+    const claude = await readJson(claudePath);
+    const claudeCommand = commandFor(skillRoot, 'claude-code');
+    for (const event of ['PreToolUse', 'PostToolUse', 'PostToolUseFailure']) add(claude, event, claudeCommand);
+    await save(claudePath, claude);
+  }
 }
 
 export async function uninstallHooks({ codexPath, claudePath, skillRoot }) {
-  const codex = await readJson(codexPath);
-  const codexCommand = commandFor(skillRoot, 'codex');
-  for (const event of ['PreToolUse', 'PostToolUse']) remove(codex, event, codexCommand);
-  await save(codexPath, codex);
+  if (codexPath) {
+    const codex = await readJson(codexPath);
+    const codexCommand = commandFor(skillRoot, 'codex');
+    for (const event of ['PreToolUse', 'PostToolUse']) remove(codex, event, codexCommand);
+    await save(codexPath, codex);
+  }
 
-  const claude = await readJson(claudePath);
-  const claudeCommand = commandFor(skillRoot, 'claude-code');
-  for (const event of ['PreToolUse', 'PostToolUse', 'PostToolUseFailure']) remove(claude, event, claudeCommand);
-  await save(claudePath, claude);
+  if (claudePath) {
+    const claude = await readJson(claudePath);
+    const claudeCommand = commandFor(skillRoot, 'claude-code');
+    for (const event of ['PreToolUse', 'PostToolUse', 'PostToolUseFailure']) remove(claude, event, claudeCommand);
+    await save(claudePath, claude);
+  }
 }
 
 async function main() {
   const [mode, codexPath, claudePath, skillRoot] = process.argv.slice(2);
-  if (!['install', 'uninstall'].includes(mode) || !codexPath || !claudePath || !skillRoot) {
-    throw new Error('usage: configure-hooks.mjs install|uninstall <codex-hooks> <claude-settings> <skill-root>');
+  if (!['install', 'uninstall'].includes(mode) || !skillRoot || (!codexPath && !claudePath)) {
+    throw new Error('usage: configure-hooks.mjs install|uninstall <codex-hooks-or-> <claude-settings-or-> <skill-root>');
   }
-  await (mode === 'install' ? installHooks : uninstallHooks)({ codexPath, claudePath, skillRoot });
+  await (mode === 'install' ? installHooks : uninstallHooks)({
+    codexPath: codexPath === '-' ? undefined : codexPath,
+    claudePath: claudePath === '-' ? undefined : claudePath,
+    skillRoot,
+  });
 }
 
 if (process.argv[1] && basename(process.argv[1]) === basename(fileURLToPath(import.meta.url))) {

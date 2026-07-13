@@ -6,6 +6,7 @@ import test from 'node:test';
 
 import { listAuditEvents } from '../skills/coordinating-herdr-agents/scripts/core.mjs';
 import { handleHookPayload } from '../skills/coordinating-herdr-agents/scripts/hook-lib.mjs';
+import { runtimeFromEnvironment } from '../skills/coordinating-herdr-agents/scripts/hook.mjs';
 
 const request = {
   origin: 'proactive',
@@ -17,6 +18,7 @@ const request = {
 };
 
 const commandFor = (value) => `@'\n${JSON.stringify(value)}\n'@ | node "C:\\skill\\coordinate.mjs" --stdin`;
+const posixCommandFor = (value) => `node "$HOME/.codex/plugins/coordinating-herdr-agents/skills/coordinating-herdr-agents/scripts/coordinate.mjs" --stdin <<'JSON'\n${JSON.stringify(value)}\nJSON`;
 
 async function stateDir() {
   return mkdtemp(join(tmpdir(), 'herdr-hook-'));
@@ -62,6 +64,26 @@ test('proactive wrapper request is logged and viewer is activated', async () => 
   assert.deepEqual(event.source, { type: 'agent', id: 'w1:pH' });
   assert.deepEqual(event.target, { type: 'agent', id: 'w2:p1' });
   assert.equal(event.message_redacted, request.message);
+});
+
+test('POSIX literal heredoc wrapper request is accepted', async () => {
+  const dir = await stateDir();
+  const result = await handleHookPayload({
+    hook_event_name: 'PreToolUse',
+    tool_name: 'Bash',
+    tool_use_id: 'tool-posix',
+    tool_input: { command: posixCommandFor(request) },
+  }, { runtime: 'codex', sourceId: 'w1:pH', stateDir: dir, launchViewer: false });
+  assert.equal(result.output, undefined);
+  const [event] = await listAuditEvents(dir);
+  assert.equal(event.event_id, 'tool-posix');
+  assert.equal(event.message_redacted, request.message);
+});
+
+test('hook runtime is detected from plugin environment when no installer argument is present', () => {
+  assert.equal(runtimeFromEnvironment({ PLUGIN_ROOT: '/tmp/plugin', CLAUDE_PLUGIN_ROOT: '/tmp/plugin' }), 'codex');
+  assert.equal(runtimeFromEnvironment({ CLAUDE_PLUGIN_ROOT: '/tmp/plugin' }), 'claude-code');
+  assert.equal(runtimeFromEnvironment({}), 'unknown');
 });
 
 test('user-directed wrapper request is logged without opening viewer', async () => {

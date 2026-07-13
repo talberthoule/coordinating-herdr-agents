@@ -9,8 +9,12 @@ $codexHooks = Join-Path $codexHome 'hooks.json'
 $claudeSettings = Join-Path $claudeHome 'settings.json'
 $claudeLink = Join-Path $claudeHome 'skills\coordinating-herdr-agents'
 $stateDir = Join-Path $env:LOCALAPPDATA 'Herdr\coordination-audit'
+$codexInstalled = [bool](Get-Command codex -ErrorAction SilentlyContinue)
+$claudeInstalled = [bool](Get-Command claude -ErrorAction SilentlyContinue)
 
-& node (Join-Path $skillRoot 'scripts\configure-hooks.mjs') uninstall $codexHooks $claudeSettings $skillRoot
+$codexArg = if ($codexInstalled) { $codexHooks } else { '-' }
+$claudeArg = if ($claudeInstalled) { $claudeSettings } else { '-' }
+& node (Join-Path $skillRoot 'scripts\configure-hooks.mjs') uninstall $codexArg $claudeArg $skillRoot
 if ($LASTEXITCODE -ne 0) { throw 'Failed to remove coordination hooks.' }
 
 $viewerState = Join-Path $stateDir 'viewer.json'
@@ -23,7 +27,7 @@ if (Test-Path -LiteralPath $viewerState) {
     }
 }
 
-if (Test-Path -LiteralPath $claudeLink) {
+if ($claudeInstalled -and (Test-Path -LiteralPath $claudeLink)) {
     $item = Get-Item -LiteralPath $claudeLink -Force
     $targets = @($item.Target | ForEach-Object { [IO.Path]::GetFullPath($_) })
     if ($item.LinkType -eq 'Junction' -and $targets -contains [IO.Path]::GetFullPath($skillRoot)) {
@@ -40,5 +44,5 @@ if ($PurgeAuditHistory -and (Test-Path -LiteralPath $stateDir)) {
     Remove-Item -LiteralPath $resolved -Recurse -Force
 }
 
-Write-Host 'Removed Herdr coordination hooks and the Claude Code skill junction.'
+Write-Host 'Removed Herdr coordination hooks.'
 if (-not $PurgeAuditHistory) { Write-Host "Preserved audit history at $stateDir" }
