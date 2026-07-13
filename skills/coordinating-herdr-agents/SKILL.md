@@ -51,11 +51,21 @@ Long-running loops are the main source of duplicated effort, and **labels lie** 
 
 ## Mutation Boundary
 
-Proactive coordination may only request `herdr agent send` for an existing agent. The audited wrapper submits the message atomically with Herdr's `pane run`, so report it as sent; a later status read is still required before claiming the agent resumed. Do not proactively start agents, run other pane commands, focus UI, close panes, rename items, or alter layout.
+Proactive coordination may only request `herdr agent send` for an existing agent. The audited wrapper prefixes the source tab/pane, types the message, and sends Enter after a short delay, so report it as sent; a later status read is still required before claiming the agent resumed. Do not proactively start agents, run other pane commands, focus UI, close panes, rename items, or alter layout.
 
 A direct user request may authorize broader Herdr actions. Mark those `user-directed`; they remain audited but do not auto-open the viewer.
 
 Every mutation must use the audited wrapper. Read [references/command-policy.md](references/command-policy.md) before the first mutation in a turn. Raw Herdr mutations are denied by the profile hook.
+
+## Receiving Coordination Messages
+
+When a Herdr coordination message lands in your session, reply before doing substantial work so the sender knows it was actually seen. Keep it compact:
+
+```text
+ACK <event_id or source> - received; status: accepted|declined|needs-info
+```
+
+This acknowledgement is a coordination convention, not proof of transport delivery. If the message does not include an event id, acknowledge the visible source prefix and summarize what you accepted or need clarified.
 
 ## Example
 
@@ -65,6 +75,14 @@ After snapshot and pane-read show that `w2:p1` owns a paused installer build, ru
 @'
 {"origin":"proactive","action":"herdr.exec","args":["agent","send","w2:p1","Resume the official installer build and report blockers here."],"target":{"type":"agent","id":"w2:p1"},"reason":"Continue paused work without duplicating it","message":"Resume the official installer build and report blockers here."}
 '@ | node "$HOME\.codex\skills\coordinating-herdr-agents\scripts\coordinate.mjs" --stdin
+```
+
+On Linux, use the same literal JSON through a quoted heredoc:
+
+```sh
+node "$HOME/.codex/skills/coordinating-herdr-agents/scripts/coordinate.mjs" --stdin <<'JSON'
+{"origin":"proactive","action":"herdr.exec","args":["agent","send","w2:p1","Resume the official installer build and report blockers here."],"target":{"type":"agent","id":"w2:p1"},"reason":"Continue paused work without duplicating it","message":"Resume the official installer build and report blockers here."}
+JSON
 ```
 
 The hook records attempted and outcome events, redacts obvious secrets, and opens the loopback audit viewer for proactive sends. Use **Viewed & close** to acknowledge; closing the tab alone leaves entries unseen.
@@ -78,7 +96,7 @@ The hook records attempted and outcome events, redacts obvious secrets, and open
 | Recover pane context | `herdr pane read <id> --source recent-unwrapped` |
 | Coordinate ownership | Audited `agent send` wrapper |
 | Perform user-requested mutation | Audited wrapper with `origin: user-directed` |
-| Inspect audit | Viewer opens automatically after proactive send |
+| Inspect audit | Viewer opens automatically after proactive sends, reuses an active page, shows newest events first, and supports deleting one action or all history |
 
 ## Common Mistakes
 
@@ -87,6 +105,7 @@ The hook records attempted and outcome events, redacts obvious secrets, and open
 - Do not repeat work merely because another agent is idle; read its pane and stage a handoff when relevant.
 - Do not claim a submitted prompt started an agent turn until a later status read shows the agent working.
 - Do not place credentials in coordination messages. The wrapper blocks obvious secrets.
+- Do not put literal `Herdr <word>` prose inside unrelated shell command bodies; the hook scans complete command text and may classify it as a raw Herdr mutation. Reword or pass the text another way.
 - Do not `checkout`, `checkout -b`, `merge`, or `stash` in a shared working tree before confirming who holds it — you will sweep another agent's uncommitted work onto your branch.
 - Do not park on `main` in a worktree. It blocks the tree-holder's merge, and nothing tells you that you did it.
 - Do not rely on a submitted `agent send` to stop an imminent collision. It is a queued message, not an interrupt. Escalate time-critical conflicts to the user.

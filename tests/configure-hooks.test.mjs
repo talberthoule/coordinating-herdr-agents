@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import { installHooks, uninstallHooks } from '../scripts/configure-hooks.mjs';
+import { installHooks, uninstallHooks } from '../skills/coordinating-herdr-agents/scripts/configure-hooks.mjs';
 
 test('installation preserves existing hooks and is idempotent for both runtimes', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'herdr-hooks-'));
@@ -39,4 +39,17 @@ test('uninstall removes only coordination hook entries', async () => {
   const after = JSON.parse(await readFile(codex, 'utf8'));
   assert.equal(after.hooks.PreToolUse.length, 1);
   assert.equal(after.hooks.PreToolUse[0].hooks[0].command, 'someone else');
+});
+
+test('installation can configure only the host that is present', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'herdr-hooks-'));
+  const codex = join(dir, 'hooks.json');
+  await installHooks({ codexPath: codex, skillRoot: '/skill' });
+  const codexValue = JSON.parse(await readFile(codex, 'utf8'));
+  assert.deepEqual(Object.keys(codexValue.hooks).sort(), ['PostToolUse', 'PreToolUse']);
+
+  const claude = join(dir, 'settings.json');
+  await installHooks({ claudePath: claude, skillRoot: '/skill' });
+  const claudeValue = JSON.parse(await readFile(claude, 'utf8'));
+  assert.deepEqual(Object.keys(claudeValue.hooks).sort(), ['PostToolUse', 'PostToolUseFailure', 'PreToolUse']);
 });

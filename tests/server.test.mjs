@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import { appendAuditEvent, listAuditEvents, readAuditState } from '../scripts/core.mjs';
-import { createAuditServer } from '../scripts/audit-server.mjs';
-import { ensureAuditViewer } from '../scripts/hook-lib.mjs';
+import { appendAuditEvent, listAuditEvents, readAuditState } from '../skills/coordinating-herdr-agents/scripts/core.mjs';
+import { createAuditServer } from '../skills/coordinating-herdr-agents/scripts/audit-server.mjs';
+import { ensureAuditViewer } from '../skills/coordinating-herdr-agents/scripts/hook-lib.mjs';
 
 async function fixture() {
   const stateDir = await mkdtemp(join(tmpdir(), 'herdr-viewer-'));
@@ -66,6 +66,19 @@ test('viewer filters audit events by attempted, succeeded, or failed status', as
   assert.deepEqual((await response.json()).events.map((event) => event.phase), ['succeeded']);
 });
 
+test('events API returns newest events first', async (t) => {
+  const stateDir = await fixture();
+  await appendAuditEvent(stateDir, {
+    event_id: 'two', phase: 'attempted', runtime: 'codex', origin: 'proactive',
+    action: 'herdr.exec', target: { type: 'agent', id: 'w2:p2' }, reason: 'newer',
+    message_redacted: 'resume', message_sha256: '1'.repeat(64),
+  });
+  const viewer = await createAuditServer({ stateDir, token: 'test-token', port: 0, autoExit: false });
+  t.after(() => viewer.close());
+  const response = await fetch(`${viewer.url}/api/events?token=test-token`);
+  assert.deepEqual((await response.json()).events.map((event) => event.event_id), ['two', 'one']);
+});
+
 test('viewer reads filters from explicit elements instead of window.origin', async (t) => {
   const stateDir = await fixture();
   const viewer = await createAuditServer({ stateDir, token: 'test-token', port: 0, autoExit: false });
@@ -97,22 +110,63 @@ test('Viewed & close acknowledges the displayed sequence', async (t) => {
   assert.equal((await readAuditState(stateDir)).acknowledged_sequence, 1);
 });
 
-test('clear endpoint refuses unseen history and clears viewed history after confirmation', async (t) => {
+test('delete endpoint removes one complete coordination action', async (t) => {
+  const stateDir = await fixture();
+  await appendAuditEvent(stateDir, {
+    event_id: 'one', phase: 'succeeded', runtime: 'codex', origin: 'proactive',
+    action: 'herdr.exec', target: { type: 'agent', id: 'w2:p1' }, reason: 'test',
+    message_redacted: 'resume', message_sha256: '0'.repeat(64), outcome_summary: 'sent',
+  });
+  await appendAuditEvent(stateDir, {
+    event_id: 'two', phase: 'attempted', runtime: 'codex', origin: 'proactive',
+    action: 'herdr.exec', target: { type: 'agent', id: 'w2:p2' }, reason: 'test',
+    message_redacted: 'resume', message_sha256: '1'.repeat(64),
+  });
+  const viewer = await createAuditServer({ stateDir, token: 'test-token', port: 0, autoExit: false });
+  t.after(() => viewer.close());
+  const response = await fetch(`${viewer.url}/api/events/one?token=test-token`, { method: 'DELETE' });
+  assert.equal(response.status, 204);
+  assert.deepEqual((await listAuditEvents(stateDir)).map((event) => event.event_id), ['two']);
+});
+
+test('delete all requires confirmation and empties audit history', async (t) => {
   const stateDir = await fixture();
   const viewer = await createAuditServer({ stateDir, token: 'test-token', port: 0, autoExit: false });
   t.after(() => viewer.close());
   let response = await fetch(`${viewer.url}/api/clear?token=test-token`, {
-    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ confirmed: true }),
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({}),
   });
-  assert.equal(response.status, 409);
-  await fetch(`${viewer.url}/api/viewed-close?token=test-token`, {
-    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sequence: 1 }),
-  });
+  assert.equal(response.status, 400);
   response = await fetch(`${viewer.url}/api/clear?token=test-token`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ confirmed: true }),
   });
   assert.equal(response.status, 204);
   assert.deepEqual(await listAuditEvents(stateDir), []);
+});
+
+test('active page polling suppresses duplicate browser launches and stale presence permits one', async (t) => {
+  const stateDir = await fixture();
+  const viewer = await createAuditServer({ stateDir, token: 'test-token', port: 0, autoExit: false });
+  t.after(() => viewer.close());
+  await writeFile(join(stateDir, 'viewer.json'), `${JSON.stringify({
+    pid: process.pid,
+    token: viewer.token,
+    url: viewer.url,
+    last_seen_at: new Date().toISOString(),
+  })}\n`, 'utf8');
+
+  const opened = [];
+  assert.equal(await ensureAuditViewer(stateDir, { openUrl: (url) => opened.push(url) }), `${viewer.url}/?token=${viewer.token}`);
+  assert.equal(opened.length, 0);
+
+  await writeFile(join(stateDir, 'viewer.json'), `${JSON.stringify({
+    pid: process.pid,
+    token: viewer.token,
+    url: viewer.url,
+    last_seen_at: new Date(Date.now() - 10_000).toISOString(),
+  })}\n`, 'utf8');
+  assert.equal(await ensureAuditViewer(stateDir, { openUrl: (url) => opened.push(url) }), `${viewer.url}/?token=${viewer.token}`);
+  assert.deepEqual(opened, [`${viewer.url}/?token=${viewer.token}`]);
 });
 
 test('concurrent proactive activations share one viewer process', async () => {

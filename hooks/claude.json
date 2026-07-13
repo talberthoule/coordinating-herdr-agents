@@ -1,0 +1,46 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/skills/coordinating-herdr-agents/scripts/hook.mjs\"",
+            "commandWindows": "if (Get-Command node -ErrorAction SilentlyContinue) { node \"$env:CLAUDE_PLUGIN_ROOT\\skills\\coordinating-herdr-agents\\scripts\\hook.mjs\" }",
+            "timeout": 15,
+            "statusMessage": "Auditing Herdr coordination..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/skills/coordinating-herdr-agents/scripts/hook.mjs\"",
+            "commandWindows": "if (Get-Command node -ErrorAction SilentlyContinue) { node \"$env:CLAUDE_PLUGIN_ROOT\\skills\\coordinating-herdr-agents\\scripts\\hook.mjs\" }",
+            "timeout": 15,
+            "statusMessage": "Recording Herdr coordination..."
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/skills/coordinating-herdr-agents/scripts/hook.mjs\"",
+            "commandWindows": "if (Get-Command node -ErrorAction SilentlyContinue) { node \"$env:CLAUDE_PLUGIN_ROOT\\skills\\coordinating-herdr-agents\\scripts\\hook.mjs\" }",
+            "timeout": 15,
+            "statusMessage": "Recording failed Herdr coordination..."
+          }
+        ]
+      }
+    ]
+  }
+}

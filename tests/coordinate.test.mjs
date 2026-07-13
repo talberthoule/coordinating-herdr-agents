@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
-import { executeCoordinationRequest } from '../scripts/coordinate.mjs';
+import { executeCoordinationRequest } from '../skills/coordinating-herdr-agents/scripts/coordinate.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fakeHerdr = join(here, 'fake-herdr.mjs');
@@ -21,35 +21,53 @@ function request(origin = 'proactive') {
   };
 }
 
-test('proactive send verifies the target and submits atomically', async () => {
+test('proactive send identifies its source and submits with a delayed Enter', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'fake-herdr-'));
   const log = join(dir, 'calls.jsonl');
   const result = await executeCoordinationRequest(request(), {
     command: process.execPath,
     prefixArgs: [fakeHerdr],
-    env: { ...process.env, FAKE_HERDR_LOG: log },
+    env: {
+      ...process.env,
+      FAKE_HERDR_LOG: log,
+      FAKE_HERDR_TAB_LABEL: 'codex-complete-MRs-2',
+      HERDR_PANE_ID: 'w1:pE',
+      HERDR_TAB_ID: 'w1:tE',
+    },
+    inputDelayMs: 0,
   });
   assert.equal(result.exitCode, 0);
   const calls = (await readFile(log, 'utf8')).trim().split(/\r?\n/).map(JSON.parse);
   assert.deepEqual(calls, [
     ['agent', 'get', 'w2:p1'],
-    ['pane', 'run', 'w2:p1', 'Resume the official installer build.'],
+    ['tab', 'get', 'w1:tE'],
+    ['pane', 'send-text', 'w2:p1', '[Herdr from "codex-complete-MRs-2" (w1:pE)] Resume the official installer build.'],
+    ['pane', 'send-keys', 'w2:p1', 'enter'],
   ]);
 });
 
-test('failed atomic submissions are reported', async () => {
+test('failed Enter submissions are reported', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'fake-herdr-'));
   const log = join(dir, 'calls.jsonl');
   const result = await executeCoordinationRequest(request(), {
     command: process.execPath,
     prefixArgs: [fakeHerdr],
-    env: { ...process.env, FAKE_HERDR_LOG: log, FAKE_HERDR_RUN_FAILURE: '1' },
+    env: {
+      ...process.env,
+      FAKE_HERDR_LOG: log,
+      FAKE_HERDR_KEYS_FAILURE: '1',
+      HERDR_PANE_ID: 'w1:pE',
+      HERDR_TAB_ID: 'w1:tE',
+    },
+    inputDelayMs: 0,
   });
   assert.equal(result.exitCode, 1);
   const calls = (await readFile(log, 'utf8')).trim().split(/\r?\n/).map(JSON.parse);
   assert.deepEqual(calls, [
     ['agent', 'get', 'w2:p1'],
-    ['pane', 'run', 'w2:p1', 'Resume the official installer build.'],
+    ['tab', 'get', 'w1:tE'],
+    ['pane', 'send-text', 'w2:p1', '[Herdr from w1:pE] Resume the official installer build.'],
+    ['pane', 'send-keys', 'w2:p1', 'enter'],
   ]);
 });
 

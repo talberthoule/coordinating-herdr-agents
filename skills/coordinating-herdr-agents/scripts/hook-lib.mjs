@@ -6,12 +6,22 @@ import { fileURLToPath } from 'node:url';
 
 import { appendAuditEvent, classifyShellCommand, defaultStateDir, redactOutboundText, validateCoordinationRequest } from './core.mjs';
 
-const hereStringPattern = /@'\s*\r?\n([\s\S]*?)\r?\n'@\s*\|\s*node\b[\s\S]*coordinate\.mjs\b[\s\S]*--stdin/i;
+const wrapperPatterns = [
+  {
+    pattern: /@'\s*\r?\n([\s\S]*?)\r?\n'@\s*\|\s*node\b[\s\S]*coordinate\.mjs\b[\s\S]*--stdin/i,
+  },
+  {
+    pattern: /node\b[\s\S]*coordinate\.mjs\b[\s\S]*--stdin[\s\S]*<<'([A-Za-z_][A-Za-z0-9_-]*)'\s*\r?\n([\s\S]*?)\r?\n\1\b/i,
+    group: 2,
+  },
+];
 
 export function extractCoordinationRequest(command) {
-  const match = String(command || '').match(hereStringPattern);
-  if (!match) throw new Error('audited wrapper requires a single-quoted PowerShell here-string containing JSON');
-  return JSON.parse(match[1]);
+  for (const candidate of wrapperPatterns) {
+    const match = String(command || '').match(candidate.pattern);
+    if (match) return JSON.parse(match[candidate.group || 1]);
+  }
+  throw new Error('audited wrapper requires literal JSON through a PowerShell here-string or POSIX heredoc');
 }
 
 function deny(reason) {
@@ -34,7 +44,24 @@ function outcome(payload) {
   return { phase: failed ? 'failed' : 'succeeded', summary: redactOutboundText(text.slice(0, 1000)).redacted };
 }
 
-export async function ensureAuditViewer(stateDir = defaultStateDir(), { openBrowser = true } = {}) {
+function pageActive(viewer) {
+  return viewer.last_seen_at && Date.now() - Date.parse(viewer.last_seen_at) <= 5000;
+}
+
+function defaultOpenUrl(url) {
+  const command = process.platform === 'win32' ? 'cmd.exe' : process.platform === 'darwin' ? 'open' : 'xdg-open';
+  const args = process.platform === 'win32' ? ['/d', '/c', 'start', '', url] : [url];
+  try {
+    const browser = spawn(command, args, { detached: true, stdio: 'ignore', windowsHide: true });
+    browser.once('error', () => process.stderr.write(`Herdr coordination audit: ${url}\n`));
+    browser.unref();
+  } catch {
+    process.stderr.write(`Herdr coordination audit: ${url}\n`);
+  }
+}
+
+export async function ensureAuditViewer(stateDir = defaultStateDir(), options = {}) {
+  const { openBrowser = true, openUrl = defaultOpenUrl } = options;
   await mkdir(stateDir, { recursive: true });
   const viewerPath = join(stateDir, 'viewer.json');
   const healthyViewer = async () => {
@@ -46,6 +73,7 @@ export async function ensureAuditViewer(stateDir = defaultStateDir(), { openBrow
   };
 
   let existing = await healthyViewer();
+  let started = false;
   if (!existing) {
     const lockPath = join(stateDir, '.viewer-start.lock');
     let lock;
@@ -70,6 +98,7 @@ export async function ensureAuditViewer(stateDir = defaultStateDir(), { openBrow
           env: { ...process.env, HERDR_COORDINATION_STATE_DIR: stateDir, HERDR_COORDINATION_VIEWER_TOKEN: token },
         });
         child.unref();
+        started = true;
         const deadline = Date.now() + 5000;
         while (Date.now() < deadline && !(existing = await healthyViewer())) {
           await new Promise((resolve) => setTimeout(resolve, 50));
@@ -83,11 +112,12 @@ export async function ensureAuditViewer(stateDir = defaultStateDir(), { openBrow
   }
 
   const url = `${existing.url}/?token=${encodeURIComponent(existing.token)}`;
-  if (openBrowser && process.platform === 'win32') {
+  if (openBrowser && (started || !pageActive(existing))) {
     try {
-      const browser = spawn('cmd.exe', ['/d', '/c', 'start', '', url], { detached: true, stdio: 'ignore', windowsHide: true });
-      browser.unref();
-    } catch { process.stderr.write(`Herdr coordination audit: ${url}\n`); }
+      await openUrl(url);
+    } catch {
+      process.stderr.write(`Herdr coordination audit: ${url}\n`);
+    }
   }
   return url;
 }
@@ -112,9 +142,20 @@ export async function handleHookPayload(payload, options = {}) {
   }
   const redaction = redactOutboundText(request.message || '');
   const sourceId = options.sourceId || process.env.HERDR_PANE_ID;
+  const fallbackEventId = [
+    runtime,
+    payload.session_id || '',
+    payload.turn_id || '',
+    request.origin,
+    request.action,
+    request.target?.type || '',
+    request.target?.id || '',
+    redaction.sha256,
+  ].join(':');
+  const eventId = payload.tool_use_id || payload.toolUseId || fallbackEventId;
   const base = {
     schema_version: 1,
-    event_id: payload.tool_use_id || payload.toolUseId,
+    event_id: eventId,
     runtime,
     session_id: payload.session_id,
     turn_id: payload.turn_id,

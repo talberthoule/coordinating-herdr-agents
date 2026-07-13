@@ -13,7 +13,7 @@ Pipe one literal JSON object in a single-quoted PowerShell here-string directly 
 | `reason` | yes | Concise coordination reason |
 | `message` | yes | Outbound text, or an empty string for actions without text |
 
-For `proactive`, `args` must be exactly `['agent', 'send', targetId, message]`; `target` and `message` must match those arguments. The wrapper verifies the agent exists and submits the message atomically with Herdr's `pane run`. A successful audit outcome means submission to the pane, not proof that the agent started a new turn.
+For `proactive`, `args` must be exactly `['agent', 'send', targetId, message]`; `target` and `message` must match those arguments. The wrapper verifies the agent exists, prefixes the source tab/pane for the recipient, types the message, and sends Enter after a short delay. A successful audit outcome means submission to the pane, not proof that the agent started a new turn.
 
 For `user-directed`, broader Herdr arguments are permitted because the user supplied the authority. Never relabel an agent-initiated action as user-directed.
 
