@@ -77,6 +77,18 @@ The audited command recognizer adds the literal POSIX heredoc form documented by
 
 State remains local to the user. Platform-specific browser auto-open behavior is optional; printing the audit URL is sufficient on Linux.
 
+## Activity viewer
+
+The audit server remains a single loopback process per state directory. The existing two-second event poll also records page presence. A proactive event opens the browser only when it starts a new server or when no page has polled within the last five seconds. An active page therefore suppresses duplicate tabs, while a page closed through the browser can reopen on a later event instead of leaving an invisible server forever. If the user intentionally chooses `Viewed & close`, the server stops and the next proactive event may open a new page.
+
+The events API returns matching records in descending sequence order so the newest activity is always at the top. Sequence numbers remain monotonic and are never renumbered after deletion.
+
+Every displayed record has a `Delete` action with an accessible label and confirmation. Deleting a record removes all audit phases with the same coordination action ID, so an attempted action and its succeeded or failed outcome cannot be left as fragments. The server performs the rewrite atomically under the existing state lock.
+
+`Clear viewed history` becomes `Delete all history`. It requires explicit confirmation but does not require the separate acknowledgement flow. Both deletion operations remain restricted to the token-protected loopback server. The page reloads only after a successful response; failures leave the records visible and report the error.
+
+Polling must not replace the event list while a delete control has keyboard focus. This preserves a stable keyboard interaction without adding a UI framework or client-side state library.
+
 ## README
 
 The README order is:
@@ -95,6 +107,9 @@ Claims stay bounded: this is a coordination and guardrail layer over Herdr, not 
 
 - run the existing Node test suite after path changes;
 - add focused tests for POSIX command parsing and runtime detection;
+- prove an active viewer page suppresses another browser launch and stale page presence permits one;
+- prove events are returned newest-first and deletion removes all phases of one action;
+- prove deleting all history requires confirmation and empties the audit log;
 - validate the Codex plugin and marketplace manifests;
 - run `claude plugin validate` on the repository;
 - smoke-test both marketplaces from a clean local clone, then repeat against the public Git source after release;
@@ -106,5 +121,7 @@ Claims stay bounded: this is a coordination and guardrail layer over Herdr, not 
 - a new session can discover the coordination skill and review/trust its hooks;
 - the manual installer works on Windows and Linux;
 - audited messages retain source attribution on both shells;
+- proactive events reuse one activity page while its viewer server is healthy;
+- the activity page shows newest events first and can delete one complete action or all history;
 - existing Windows behavior and tests remain intact;
 - the README makes the benefit and common workflows clear before setup details.
