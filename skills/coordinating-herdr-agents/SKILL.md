@@ -57,6 +57,16 @@ A direct user request may authorize broader Herdr actions. Mark those `user-dire
 
 Every mutation must use the audited wrapper. Read [references/command-policy.md](references/command-policy.md) before the first mutation in a turn. Raw Herdr mutations are denied by the profile hook.
 
+## Receiving Coordination Messages
+
+When a Herdr coordination message lands in your session, reply before doing substantial work so the sender knows it was actually seen. Keep it compact:
+
+```text
+ACK <event_id or source> - received; status: accepted|declined|needs-info
+```
+
+This acknowledgement is a coordination convention, not proof of transport delivery. If the message does not include an event id, acknowledge the visible source prefix and summarize what you accepted or need clarified.
+
 ## Example
 
 After snapshot and pane-read show that `w2:p1` owns a paused installer build, run a single PowerShell command containing literal JSON:
@@ -86,7 +96,7 @@ The hook records attempted and outcome events, redacts obvious secrets, and open
 | Recover pane context | `herdr pane read <id> --source recent-unwrapped` |
 | Coordinate ownership | Audited `agent send` wrapper |
 | Perform user-requested mutation | Audited wrapper with `origin: user-directed` |
-| Inspect audit | Viewer opens automatically after proactive send |
+| Inspect audit | Viewer opens automatically after proactive sends, reuses an active page, shows newest events first, and supports deleting one action or all history |
 
 ## Common Mistakes
 

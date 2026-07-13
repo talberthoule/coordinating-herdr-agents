@@ -1,50 +1,130 @@
 # Herdr Agent Coordination
 
-An Agent Skill for coordinating Codex and Claude Code sessions through the Herdr CLI. It lets agents inspect related Herdr tabs, avoid duplicate work, send audited messages to other agents, and review coordination events in a local web UI.
+Herdr Agent Coordination lets Codex and Claude Code sessions share work without guessing who owns a task. It gives each session a local protocol for discovering active work, avoiding duplicate edits, sending source-attributed handoffs, and reviewing a token-protected activity trail.
 
-No orchestration framework is added: Herdr remains the coordination layer and the agents use its CLI directly.
-
-## Requirements
-
-- Windows PowerShell
-- Node.js
-- Herdr CLI
-- Codex CLI and Claude Code on `PATH`
+It is deliberately small: Herdr remains the coordination layer, and this project adds skill instructions plus audited hooks around the Herdr CLI.
 
 ## Install
 
-Clone this repository, then run:
+The normal setup is two commands in the host CLI you already use.
+
+Codex:
+
+```sh
+codex plugin marketplace add talberthoule/coordinating-herdr-agents
+codex plugin add coordinating-herdr-agents@herdr
+```
+
+Claude Code:
+
+```sh
+claude plugin marketplace add talberthoule/coordinating-herdr-agents
+claude plugin install coordinating-herdr-agents@herdr
+```
+
+Review and trust the installed hooks through the normal host prompt. The hooks are what block raw Herdr mutations and record audited coordination actions.
+
+## First Use
+
+Start a new agent session and ask it to use Herdr Agent Coordination before editing a shared repository. The skill will inspect Herdr first, read relevant panes, and only send an audited message when another session owns overlapping work or has context worth preserving.
+
+The local activity viewer opens for proactive handoffs. It shows the newest events first, can delete one complete coordination action, and has a `Delete all history` control for clearing local audit history.
+
+## Use Cases
+
+- discover active and paused work before starting a duplicate task;
+- resume the correct session instead of opening a competing lane;
+- send source-attributed handoffs that include the originating tab and pane;
+- divide feature, review, and investigation lanes across Codex and Claude Code;
+- catch shared-worktree conflicts before checkout, merge, or stash moves another agent's work;
+- inspect attempted, succeeded, and failed coordination actions in a local audit trail.
+
+## Acknowledgements
+
+For handoffs that require the receiving session to act, ask for a compact acknowledgement in the message:
+
+```text
+ACK <event_id> - received from <source>; status: accepted|declined|needs-info
+```
+
+This ACK is a human/agent convention, not a transport guarantee. The audit log still records whether the sender-side wrapper attempted and completed the Herdr send; the ACK confirms the target session actually saw and understood the handoff.
+
+## Safety Boundary
+
+Read-only Herdr inspection is allowed directly. Proactive mutations must use the audited wrapper and are limited to `herdr agent send` for an existing agent. User-directed mutations can be broader, but they are still audited.
+
+The hook rejects raw Herdr mutations, blocks obvious secrets in outbound messages, prefixes sent messages with source attribution, and records attempted plus outcome events locally.
+
+Audit state stays on your machine:
+
+- Windows: `%LOCALAPPDATA%\Herdr\coordination-audit`
+- Linux: `${XDG_STATE_HOME:-$HOME/.local/state}/Herdr/coordination-audit`
+
+## Manual Install
+
+Manual install is useful when plugin marketplaces are unavailable or when testing a local checkout.
+
+Windows:
 
 ```powershell
+git clone https://github.com/talberthoule/coordinating-herdr-agents.git
+cd coordinating-herdr-agents
 ./install.ps1
 ```
 
-The installer preserves existing profile hooks, configures the audited coordination hooks for both runtimes, and shares the Codex skill with Claude Code through a junction. If prompted, enable `hooks = true` under `[features]` in `~/.codex/config.toml`, then review and trust the hooks in a fresh Codex session with `/hooks`.
+Linux:
 
-## What it does
+```sh
+git clone https://github.com/talberthoule/coordinating-herdr-agents.git
+cd coordinating-herdr-agents
+./install.sh
+```
 
-- Discovers Herdr workspaces, tabs, panes, and agents.
-- Reads relevant agent context before duplicating or overlapping work.
-- Sends cross-agent messages with visible source attribution and a reliable delayed Enter.
-- Records attempted, succeeded, and failed mutations with source, target, and local time.
-- Opens a loopback-only audit viewer with origin, runtime, and status filters.
-- Blocks raw Herdr mutations and obvious secrets from audited messages.
+The installers require Node.js and Herdr. They configure whichever supported hosts are present: Codex, Claude Code, or both.
 
-Audit state is stored locally under `%LOCALAPPDATA%\Herdr\coordination-audit`.
+## Requirements
+
+- Node.js
+- Herdr CLI
+- Codex CLI or Claude Code
+- PowerShell for `install.ps1`
+- POSIX `/bin/sh` for `install.sh`
 
 ## Test
 
-```powershell
+```sh
 node --test --test-concurrency=1 tests/*.test.mjs
 ```
 
+On Linux, also check the shell installers:
+
+```sh
+sh -n install.sh
+sh -n uninstall.sh
+```
+
+## Troubleshooting
+
+- If Codex hooks do not run, enable `hooks = true` under `[features]` in `~/.codex/config.toml`, then review hooks in a fresh Codex session.
+- If Claude Code does not load the skill after manual install, restart Claude Code or reload plugins.
+- If the activity viewer page is closed manually, the next proactive event can reopen it.
+- If a hook blocks a command, rerun the action through the audited wrapper shown in the skill.
+
 ## Uninstall
+
+Windows:
 
 ```powershell
 ./uninstall.ps1
 ```
 
-Add `-PurgeAuditHistory` only when you also want to delete the local audit log.
+Linux:
+
+```sh
+./uninstall.sh
+```
+
+Use `-PurgeAuditHistory` on Windows or `--purge-audit-history` on Linux only when you also want to delete the local audit log.
 
 ## License
 

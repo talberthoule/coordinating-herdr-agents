@@ -53,6 +53,25 @@ test('root Windows installers resolve the canonical skill runtime', async () => 
   assert.match(uninstall, /scripts\\configure-hooks\.mjs/);
 });
 
+test('README leads with plugin setup and common coordination workflows', async () => {
+  const readme = await readFile(join(root, 'README.md'), 'utf8');
+  const required = [
+    'codex plugin marketplace add talberthoule/coordinating-herdr-agents',
+    'codex plugin add coordinating-herdr-agents@herdr',
+    'claude plugin marketplace add talberthoule/coordinating-herdr-agents',
+    'claude plugin install coordinating-herdr-agents@herdr',
+    './install.ps1',
+    './install.sh',
+    'discover active and paused work',
+    'source-attributed handoffs',
+    'shared-worktree conflicts',
+    'Delete all history',
+    'ACK <event_id>',
+  ];
+  for (const text of required) assert.ok(readme.includes(text), `README is missing ${text}`);
+  assert.ok(readme.indexOf('## Install') < readme.indexOf('## Manual Install'), 'plugin install should appear before manual install');
+});
+
 test('public repository excludes private local identifiers', async () => {
   const forbidden = ['Pres' + 'idio', 'Anlysis' + '-Inference-Engine', 'C:' + '\\Users\\'];
   const pending = [root];
