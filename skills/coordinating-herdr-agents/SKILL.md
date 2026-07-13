@@ -105,6 +105,7 @@ The hook records attempted and outcome events, redacts obvious secrets, and open
 - Do not repeat work merely because another agent is idle; read its pane and stage a handoff when relevant.
 - Do not claim a submitted prompt started an agent turn until a later status read shows the agent working.
 - Do not place credentials in coordination messages. The wrapper blocks obvious secrets.
+- Do not put literal `Herdr <word>` prose inside unrelated shell command bodies; the hook scans complete command text and may classify it as a raw Herdr mutation. Reword or pass the text another way.
 - Do not `checkout`, `checkout -b`, `merge`, or `stash` in a shared working tree before confirming who holds it — you will sweep another agent's uncommitted work onto your branch.
 - Do not park on `main` in a worktree. It blocks the tree-holder's merge, and nothing tells you that you did it.
 - Do not rely on a submitted `agent send` to stop an imminent collision. It is a queued message, not an interrupt. Escalate time-critical conflicts to the user.
