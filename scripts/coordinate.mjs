@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 
 import { validateCoordinationRequest } from './core.mjs';
 
+const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
 function run(command, args, env) {
   return new Promise((resolvePromise, reject) => {
     const child = spawn(command, args, { env, windowsHide: true });
@@ -30,7 +32,19 @@ export async function executeCoordinationRequest(request, options = {}) {
     if (check.exitCode !== 0) throw new Error(`target agent does not exist: ${request.target.id}`);
   }
   if (request.args[0] === 'agent' && request.args[1] === 'send') {
-    return run(command, [...prefixArgs, 'pane', 'run', request.target.id, request.message], env);
+    const sourcePane = env.HERDR_PANE_ID;
+    let sourceLabel;
+    if (env.HERDR_TAB_ID) {
+      const source = await run(command, [...prefixArgs, 'tab', 'get', env.HERDR_TAB_ID], env);
+      try { sourceLabel = JSON.parse(source.stdout).result?.tab?.label; } catch { /* use pane id */ }
+    }
+    const source = sourceLabel ? `"${String(sourceLabel).replace(/\s+/g, ' ').trim()}" (${sourcePane})` : sourcePane || 'another session';
+    const text = `[Herdr from ${source}] ${request.message}`;
+    const typed = await run(command, [...prefixArgs, 'pane', 'send-text', request.target.id, text], env);
+    if (typed.exitCode !== 0) return typed;
+    // ponytail: fixed gap avoids Herdr/Codex's paste/Enter race; remove when pane run submits reliably.
+    await wait(options.inputDelayMs ?? 100);
+    return run(command, [...prefixArgs, 'pane', 'send-keys', request.target.id, 'enter'], env);
   }
   return run(command, [...prefixArgs, ...request.args], env);
 }

@@ -51,7 +51,7 @@ Long-running loops are the main source of duplicated effort, and **labels lie** 
 
 ## Mutation Boundary
 
-Proactive coordination may only request `herdr agent send` for an existing agent. The audited wrapper submits the message atomically with Herdr's `pane run`, so report it as sent; a later status read is still required before claiming the agent resumed. Do not proactively start agents, run other pane commands, focus UI, close panes, rename items, or alter layout.
+Proactive coordination may only request `herdr agent send` for an existing agent. The audited wrapper prefixes the source tab/pane, types the message, and sends Enter after a short delay, so report it as sent; a later status read is still required before claiming the agent resumed. Do not proactively start agents, run other pane commands, focus UI, close panes, rename items, or alter layout.
 
 A direct user request may authorize broader Herdr actions. Mark those `user-directed`; they remain audited but do not auto-open the viewer.
 

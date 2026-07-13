@@ -31,7 +31,7 @@ The installer preserves existing profile hooks, configures the audited coordinat
 
 - Discovers Herdr workspaces, tabs, panes, and agents.
 - Reads relevant agent context before duplicating or overlapping work.
-- Sends cross-agent messages atomically with Enter.
+- Sends cross-agent messages with visible source attribution and a reliable delayed Enter.
 - Records attempted, succeeded, and failed mutations with source, target, and local time.
 - Opens a loopback-only audit viewer with origin, runtime, and status filters.
 - Blocks raw Herdr mutations and obvious secrets from audited messages.
