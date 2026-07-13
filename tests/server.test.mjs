@@ -1,12 +1,12 @@
-import assert from 'node:assert/strict';
+﻿import assert from 'node:assert/strict';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import { appendAuditEvent, listAuditEvents, readAuditState } from '../scripts/core.mjs';
-import { createAuditServer } from '../scripts/audit-server.mjs';
-import { ensureAuditViewer } from '../scripts/hook-lib.mjs';
+import { appendAuditEvent, listAuditEvents, readAuditState } from '../skills/coordinating-herdr-agents/scripts/core.mjs';
+import { createAuditServer } from '../skills/coordinating-herdr-agents/scripts/audit-server.mjs';
+import { ensureAuditViewer } from '../skills/coordinating-herdr-agents/scripts/hook-lib.mjs';
 
 async function fixture() {
   const stateDir = await mkdtemp(join(tmpdir(), 'herdr-viewer-'));

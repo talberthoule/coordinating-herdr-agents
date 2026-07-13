@@ -1,0 +1,10 @@
+{
+  "name": "coordinating-herdr-agents",
+  "version": "0.1.0",
+  "description": "Coordinate Codex and Claude Code sessions through Herdr with audited handoffs and a local activity trail.",
+  "author": {
+    "name": "Talbert Houle",
+    "url": "https://github.com/talberthoule"
+  },
+  "hooks": "./hooks/claude.json"
+}

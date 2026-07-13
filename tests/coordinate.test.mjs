@@ -1,11 +1,11 @@
-import assert from 'node:assert/strict';
+﻿import assert from 'node:assert/strict';
 import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
-import { executeCoordinationRequest } from '../scripts/coordinate.mjs';
+import { executeCoordinationRequest } from '../skills/coordinating-herdr-agents/scripts/coordinate.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fakeHerdr = join(here, 'fake-herdr.mjs');

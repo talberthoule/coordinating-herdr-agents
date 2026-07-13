@@ -1,11 +1,11 @@
-import assert from 'node:assert/strict';
+﻿import assert from 'node:assert/strict';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import { listAuditEvents } from '../scripts/core.mjs';
-import { handleHookPayload } from '../scripts/hook-lib.mjs';
+import { listAuditEvents } from '../skills/coordinating-herdr-agents/scripts/core.mjs';
+import { handleHookPayload } from '../skills/coordinating-herdr-agents/scripts/hook-lib.mjs';
 
 const request = {
   origin: 'proactive',

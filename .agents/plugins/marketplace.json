@@ -1,0 +1,21 @@
+{
+  "name": "herdr",
+  "interface": {
+    "displayName": "Herdr"
+  },
+  "plugins": [
+    {
+      "name": "coordinating-herdr-agents",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/talberthoule/coordinating-herdr-agents.git",
+        "ref": "main"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

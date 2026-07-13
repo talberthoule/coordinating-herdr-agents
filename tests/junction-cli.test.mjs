@@ -6,7 +6,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
-const skillRoot = dirname(dirname(fileURLToPath(import.meta.url)));
+const root = dirname(dirname(fileURLToPath(import.meta.url)));
+const skillRoot = join(root, 'skills', 'coordinating-herdr-agents');
 
 function run(command, args, input) {
   return new Promise((resolve, reject) => {

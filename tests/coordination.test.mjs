@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict';
+﻿import assert from 'node:assert/strict';
 import { mkdtemp, readFile, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -12,7 +12,7 @@ import {
   listAuditEvents,
   redactOutboundText,
   validateCoordinationRequest,
-} from '../scripts/core.mjs';
+} from '../skills/coordinating-herdr-agents/scripts/core.mjs';
 
 async function stateDir() {
   return mkdtemp(join(tmpdir(), 'herdr-coordination-'));
