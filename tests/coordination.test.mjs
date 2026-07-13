@@ -9,6 +9,8 @@ import {
   appendAuditEvent,
   classifyShellCommand,
   clearViewedHistory,
+  deleteAllAuditHistory,
+  deleteAuditAction,
   listAuditEvents,
   redactOutboundText,
   validateCoordinationRequest,
@@ -104,6 +106,42 @@ test('only acknowledged audit history can be cleared', async () => {
 
   const state = JSON.parse(await readFile(join(dir, 'state.json'), 'utf8'));
   assert.equal(state.acknowledged_sequence, 2);
+});
+
+test('deleting one audit action removes all phases with the same event id', async () => {
+  const dir = await stateDir();
+  const base = {
+    schema_version: 1,
+    event_id: 'action-1',
+    runtime: 'codex',
+    origin: 'proactive',
+    action: 'herdr.exec',
+    target: { type: 'agent', id: 'w2:p1' },
+    reason: 'test',
+    message_redacted: 'message',
+    message_sha256: '0'.repeat(64),
+  };
+  await appendAuditEvent(dir, { ...base, phase: 'attempted' });
+  await appendAuditEvent(dir, { ...base, phase: 'succeeded', outcome_summary: 'sent' });
+  await appendAuditEvent(dir, { ...base, event_id: 'action-2', phase: 'attempted' });
+
+  assert.equal(await deleteAuditAction(dir, 'action-1'), 2);
+  const remaining = await listAuditEvents(dir);
+  assert.deepEqual(remaining.map((event) => event.event_id), ['action-2']);
+  assert.deepEqual(remaining.map((event) => event.sequence), [3]);
+});
+
+test('deleting all audit history empties the log without renumbering future events', async () => {
+  const dir = await stateDir();
+  await appendAuditEvent(dir, { event_id: 'action-1', phase: 'attempted', runtime: 'codex', origin: 'proactive', action: 'herdr.exec' });
+  await appendAuditEvent(dir, { event_id: 'action-2', phase: 'attempted', runtime: 'codex', origin: 'proactive', action: 'herdr.exec' });
+
+  assert.equal(await deleteAllAuditHistory(dir), 2);
+  assert.deepEqual(await listAuditEvents(dir), []);
+
+  await appendAuditEvent(dir, { event_id: 'action-3', phase: 'attempted', runtime: 'codex', origin: 'proactive', action: 'herdr.exec' });
+  const remaining = await listAuditEvents(dir);
+  assert.deepEqual(remaining.map((event) => event.sequence), [3]);
 });
 
 test('malformed JSONL tail from an interrupted writer is ignored', async () => {

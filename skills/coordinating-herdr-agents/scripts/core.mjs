@@ -159,15 +159,28 @@ export async function acknowledgeThrough(stateDir = defaultStateDir(), sequence)
   });
 }
 
+async function rewriteAuditEvents(stateDir, keep) {
+  const events = await listAuditEvents(stateDir);
+  const remaining = events.filter(keep);
+  const path = join(stateDir, 'audit.jsonl');
+  const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`;
+  await writeFile(temporary, remaining.map((event) => JSON.stringify(event)).join('\n') + (remaining.length ? '\n' : ''), 'utf8');
+  await rename(temporary, path);
+  return events.length - remaining.length;
+}
+
 export async function clearViewedHistory(stateDir = defaultStateDir()) {
   return withLock(stateDir, async () => {
     const state = await readJson(join(stateDir, 'state.json'), { acknowledged_sequence: 0, next_sequence: 1 });
-    const events = await listAuditEvents(stateDir);
-    const remaining = events.filter((event) => event.sequence > state.acknowledged_sequence);
-    const path = join(stateDir, 'audit.jsonl');
-    const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`;
-    await writeFile(temporary, remaining.map((event) => JSON.stringify(event)).join('\n') + (remaining.length ? '\n' : ''), 'utf8');
-    await rename(temporary, path);
-    return remaining.length;
+    return rewriteAuditEvents(stateDir, (event) => event.sequence > state.acknowledged_sequence);
   });
+}
+
+export async function deleteAuditAction(stateDir = defaultStateDir(), eventId) {
+  if (!eventId) throw new Error('event_id is required');
+  return withLock(stateDir, () => rewriteAuditEvents(stateDir, (event) => event.event_id !== eventId));
+}
+
+export async function deleteAllAuditHistory(stateDir = defaultStateDir()) {
+  return withLock(stateDir, () => rewriteAuditEvents(stateDir, () => false));
 }
