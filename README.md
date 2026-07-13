@@ -109,6 +109,7 @@ sh -n uninstall.sh
 - If Claude Code does not load the skill after manual install, restart Claude Code or reload plugins.
 - If the activity viewer page is closed manually, the next proactive event can reopen it.
 - If a hook blocks a command, rerun the action through the audited wrapper shown in the skill.
+- If an unrelated shell command is blocked because inline prose contains `Herdr <word>`, reword that inline text or pass it another way; the hook scans complete shell command text.
 
 ## Uninstall
 
