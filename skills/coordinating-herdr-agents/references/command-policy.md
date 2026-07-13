@@ -23,4 +23,4 @@ The profile hook records both attempted and succeeded/failed phases with sequenc
 
 Read-only commands such as `api snapshot`, `pane read`, and `agent list` are not logged. A raw mutating Herdr command is denied; repeat it through the wrapper. Obvious tokens, passwords, API keys, bearer credentials, and private keys are blocked before execution and are not retained verbatim.
 
-The viewer binds only to `127.0.0.1`, uses a random per-run token and strict CSP, and loads no remote assets. **Viewed & close** acknowledges the highest displayed sequence and stops the viewer. Browser-tab close alone does not acknowledge it. **Clear viewed history** deletes only acknowledged entries after confirmation.
+The viewer binds only to `127.0.0.1`, uses a random per-run token and strict CSP, loads no remote assets, opens one browser tab per viewer process, and defaults to succeeded events. **Viewed & close** acknowledges the highest displayed sequence and stops the viewer. Browser-tab close alone does not acknowledge it. **Clear viewed history** deletes only acknowledged entries after confirmation.

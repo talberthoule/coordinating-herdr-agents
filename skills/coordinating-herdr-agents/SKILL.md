@@ -103,7 +103,7 @@ node "$HOME/.codex/skills/coordinating-herdr-agents/scripts/coordinate.mjs" --st
 JSON
 ```
 
-The hook records attempted and outcome events, redacts obvious secrets, and opens the loopback audit viewer for proactive sends. Use **Viewed & close** to acknowledge; closing the tab alone leaves entries unseen.
+The hook records attempted and outcome events, redacts obvious secrets, and opens one loopback audit viewer tab per viewer process for proactive sends. The viewer defaults to succeeded events. Use **Viewed & close** to acknowledge; closing the tab alone leaves entries unseen and keeps the viewer process available for later updates.
 
 ## Quick Reference
 
@@ -114,7 +114,7 @@ The hook records attempted and outcome events, redacts obvious secrets, and open
 | Recover pane context | `herdr pane read <id> --source recent-unwrapped` |
 | Coordinate ownership | Audited `agent send` wrapper |
 | Perform user-requested mutation | Audited wrapper with `origin: user-directed` |
-| Inspect audit | Viewer opens automatically after proactive sends, reuses an active page, shows newest events first, and supports deleting one action or all history |
+| Inspect audit | Viewer opens one tab per viewer process after proactive sends, defaults to succeeded events, shows newest events first, and supports deleting one action or all history |
 
 ## Common Mistakes
 

@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { mkdir, open, readFile, rm, stat } from 'node:fs/promises';
+import { mkdir, open, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -50,7 +50,7 @@ function pageActive(viewer) {
 
 function defaultOpenUrl(url) {
   const command = process.platform === 'win32' ? 'cmd.exe' : process.platform === 'darwin' ? 'open' : 'xdg-open';
-  const args = process.platform === 'win32' ? ['/d', '/c', 'start', '', url] : [url];
+  const args = process.platform === 'win32' ? ['/d', '/c', 'start', '/min', '', url] : process.platform === 'darwin' ? ['-g', url] : [url];
   try {
     const browser = spawn(command, args, { detached: true, stdio: 'ignore', windowsHide: true });
     browser.once('error', () => process.stderr.write(`Herdr coordination audit: ${url}\n`));
@@ -58,6 +58,12 @@ function defaultOpenUrl(url) {
   } catch {
     process.stderr.write(`Herdr coordination audit: ${url}\n`);
   }
+}
+
+async function markOpened(viewerPath, viewer) {
+  const value = { ...viewer, opened_at: new Date().toISOString() };
+  await writeFile(viewerPath, `${JSON.stringify(value)}\n`, 'utf8');
+  return value;
 }
 
 export async function ensureAuditViewer(stateDir = defaultStateDir(), options = {}) {
@@ -73,7 +79,6 @@ export async function ensureAuditViewer(stateDir = defaultStateDir(), options = 
   };
 
   let existing = await healthyViewer();
-  let started = false;
   if (!existing) {
     const lockPath = join(stateDir, '.viewer-start.lock');
     let lock;
@@ -98,7 +103,6 @@ export async function ensureAuditViewer(stateDir = defaultStateDir(), options = 
           env: { ...process.env, HERDR_COORDINATION_STATE_DIR: stateDir, HERDR_COORDINATION_VIEWER_TOKEN: token },
         });
         child.unref();
-        started = true;
         const deadline = Date.now() + 5000;
         while (Date.now() < deadline && !(existing = await healthyViewer())) {
           await new Promise((resolve) => setTimeout(resolve, 50));
@@ -112,7 +116,8 @@ export async function ensureAuditViewer(stateDir = defaultStateDir(), options = 
   }
 
   const url = `${existing.url}/?token=${encodeURIComponent(existing.token)}`;
-  if (openBrowser && (started || !pageActive(existing))) {
+  if (openBrowser && !existing.opened_at && !pageActive(existing)) {
+    existing = await markOpened(viewerPath, existing);
     try {
       await openUrl(url);
     } catch {

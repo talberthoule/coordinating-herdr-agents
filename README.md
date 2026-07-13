@@ -40,7 +40,7 @@ Start a new agent session and ask it to use Herdr Agent Coordination before edit
 
 It also helps decide when to keep work inline, when a short-lived subagent is enough, and when to branch into another visible Herdr lane for durable parallel work. That lets teams add processing power without losing ownership, context, or merge safety.
 
-The local activity viewer opens for proactive handoffs. It shows the newest events first, can delete one complete coordination action, and has a `Delete all history` control for clearing local audit history.
+The local activity viewer opens one browser tab per viewer process for proactive handoffs. It defaults to successful submissions, shows the newest events first, can delete one complete coordination action, and has a `Delete all history` control for clearing local audit history.
 
 ## Use Cases
 
@@ -120,7 +120,7 @@ sh -n uninstall.sh
 
 - If Codex hooks do not run, enable `hooks = true` under `[features]` in `~/.codex/config.toml`, then review hooks in a fresh Codex session.
 - If Claude Code does not load the skill after manual install, restart Claude Code or reload plugins.
-- If the activity viewer page is closed manually, the next proactive event can reopen it.
+- Use `Viewed & close` when you want to stop the activity viewer. Closing the browser tab alone leaves the viewer process running, so later events update that viewer instead of opening another tab.
 - If a hook blocks a command, rerun the action through the audited wrapper shown in the skill.
 - If an unrelated shell command is blocked because inline prose contains `Herdr <word>`, reword that inline text or pass it another way; the hook scans complete shell command text.
 

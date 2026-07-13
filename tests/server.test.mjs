@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -94,6 +94,8 @@ test('viewer offers a status filter and formats local time with a short zone nam
   t.after(() => viewer.close());
   const page = await (await fetch(`${viewer.url}/?token=test-token`)).text();
   assert.match(page, /<select id="status"/);
+  assert.match(page, /<option value="succeeded" selected>succeeded<\/option>/);
+  assert.match(page, /document\.title=.*d\.events\.length/);
   assert.match(page, /timeZoneName:'short'/);
   assert.match(page, /e\.occurred_at/);
   assert.match(page, /e\.source_display/);
@@ -165,6 +167,25 @@ test('active page polling suppresses duplicate browser launches and stale presen
     url: viewer.url,
     last_seen_at: new Date(Date.now() - 10_000).toISOString(),
   })}\n`, 'utf8');
+  assert.equal(await ensureAuditViewer(stateDir, { openUrl: (url) => opened.push(url) }), `${viewer.url}/?token=${viewer.token}`);
+  assert.deepEqual(opened, [`${viewer.url}/?token=${viewer.token}`]);
+});
+
+test('recorded viewer launch suppresses duplicate browser tabs before page polling', async (t) => {
+  const stateDir = await fixture();
+  const viewer = await createAuditServer({ stateDir, token: 'test-token', port: 0, autoExit: false });
+  t.after(() => viewer.close());
+  await writeFile(join(stateDir, 'viewer.json'), `${JSON.stringify({
+    pid: process.pid,
+    token: viewer.token,
+    url: viewer.url,
+  })}\n`, 'utf8');
+
+  const opened = [];
+  assert.equal(await ensureAuditViewer(stateDir, { openUrl: (url) => opened.push(url) }), `${viewer.url}/?token=${viewer.token}`);
+  assert.deepEqual(opened, [`${viewer.url}/?token=${viewer.token}`]);
+  assert.ok(JSON.parse(await readFile(join(stateDir, 'viewer.json'), 'utf8')).opened_at);
+
   assert.equal(await ensureAuditViewer(stateDir, { openUrl: (url) => opened.push(url) }), `${viewer.url}/?token=${viewer.token}`);
   assert.deepEqual(opened, [`${viewer.url}/?token=${viewer.token}`]);
 });
