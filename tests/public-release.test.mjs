@@ -72,6 +72,14 @@ test('README leads with plugin setup and common coordination workflows', async (
   assert.ok(readme.indexOf('## Install') < readme.indexOf('## Manual Install'), 'plugin install should appear before manual install');
 });
 
+test('CI runs the Node suite on Windows and Ubuntu', async () => {
+  const workflow = await readFile(join(root, '.github/workflows/test.yml'), 'utf8');
+  assert.match(workflow, /windows-latest/);
+  assert.match(workflow, /ubuntu-latest/);
+  assert.match(workflow, /node --test --test-concurrency=1 tests\/\*\.test\.mjs/);
+  assert.match(workflow, /sh -n install\.sh/);
+});
+
 test('public repository excludes private local identifiers', async () => {
   const forbidden = ['Pres' + 'idio', 'Anlysis' + '-Inference-Engine', 'C:' + '\\Users\\'];
   const pending = [root];
