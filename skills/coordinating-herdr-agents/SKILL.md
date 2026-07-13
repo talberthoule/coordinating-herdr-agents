@@ -28,6 +28,24 @@ Run a silent Herdr check when at least one concrete signal suggests another writ
 
 Read-only inspection is silent: it creates no audit entry and opens no viewer.
 
+## Herdr Instance vs Subagent
+
+Default to a subagent for helper work that is parent-owned and disposable: read code, inspect logs, compare options, review a diff, summarize docs, or investigate a failing test. Use another Herdr instance in the same space when the work needs a durable lane: it may edit files, run a dev server, hold browser or app state, use a separate worktree, continue after the parent moves on, receive user input directly, or preserve context from paused work.
+
+Prefer an existing Herdr instance over a fresh subagent when it already owns relevant context, files, processes, or a plan. Do not split at all when the task is small, tightly coupled, or cheaper to finish inline than coordinate.
+
+| Situation | Use |
+|---|---|
+| Quick read-only investigation | Subagent |
+| Independent code review | Subagent |
+| Summarize logs, docs, or issues | Subagent |
+| Existing pane already owns the work | Same Herdr instance |
+| Parallel file edits | Herdr instance with isolated worktree |
+| Needs dev server, browser, or live app state | Herdr instance |
+| Long-running or pausable work | Herdr instance |
+| Cross-runtime coordination, e.g. Codex + Claude | Herdr instance |
+| Small local change | Neither |
+
 ## Shared Git Working Trees
 
 Agents in the same repo usually share ONE git working tree. Git state is therefore a coordination surface, not private scratch space:
