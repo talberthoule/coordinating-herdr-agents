@@ -46,6 +46,14 @@ Prefer an existing Herdr instance over a fresh subagent when it already owns rel
 | Cross-runtime coordination, e.g. Codex + Claude | Herdr instance |
 | Small local change | Neither |
 
+## Capability-Aware Helper Handoffs
+
+When the current session lacks a capability such as Browser, Computer Use, or freshly installed software, do not stop at the local boundary. Snapshot Herdr, read likely helper panes, and ask an existing helper to confirm both capability and idle/disposable status before delegating.
+
+Prefer an already-capable helper. If a helper needs install or restart, use only a pane the user explicitly authorizes as disposable, keep the coordinating pane alive, and run lifecycle operations through the audited wrapper with `origin: user-directed`. Never restart the coordinating pane or any pane with active, uncommitted, or irreplaceable work.
+
+After restart, confirm the fresh helper exposes the capability before handing it the original task. Treat a sent prompt as queued work, not proof of execution: wait for pane status or returned evidence, then bring the result and ownership back to the coordinator.
+
 ## Shared Git Working Trees
 
 Agents in the same repo usually share ONE git working tree. Git state is therefore a coordination surface, not private scratch space:
