@@ -117,7 +117,7 @@ A send is keystrokes typed into the target composer plus a delayed Enter, so del
 5. Pane read is ground truth; ACKs arrive out of order and go stale. When correcting a mis-assignment, make the corrective message the last word in every affected queue, then verify convergence by pane read, not ACK.
 6. Verify claimed branches and commits in git before acting on any branch-ready claim.
 7. Do not reply to ACKs of ACKs.
-8. Inbound sends stomp any in-progress typing in the target composer, including the user's. Suppress routine ACK traffic toward a pane the user actively converses in — lanes send only substantive events (branch- or patch-ready with sha, verdicts, blockers, decision questions) and treat silence as understood. Broadcast such protocol changes with an explicit do-not-acknowledge marker so the change itself does not trigger an ACK storm.
+8. Inbound sends stomp any in-progress typing in the target composer, including the user's, so suppress unsolicited routine chatter toward user-facing coordinator panes — lanes volunteer only substantive events (branch- or patch-ready with sha, verdicts, blockers, decision questions). A message explicitly marked ACK-requested still requires a compact ACK: silence cannot prove delivery, because a stuck composer is indistinguishable from understood. The sender owns delivery recovery — wait about 20 seconds, then pane read, then resend — so a human pressing Enter is never the fallback. Broadcast protocol changes with an explicit do-not-acknowledge marker so the change itself does not trigger an ACK storm.
 
 ## Receiving Coordination Messages
 

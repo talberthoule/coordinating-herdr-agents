@@ -32,8 +32,13 @@ test('skill documents coordination transport reliability', async () => {
   assert.match(section, /ground truth/);
   assert.match(section, /branch-ready claim/);
   assert.match(section, /ACKs of ACKs/);
-  assert.match(section, /treat silence as understood/);
+  assert.match(section, /unsolicited routine chatter/);
+  assert.match(section, /ACK-requested still requires a compact ACK/);
+  assert.match(section, /stuck composer is indistinguishable from understood/);
+  assert.match(section, /sender owns delivery recovery/);
+  assert.match(section, /never the fallback/);
   assert.match(section, /do-not-acknowledge/);
+  assert.doesNotMatch(section, /treat silence as understood/);
 });
 
 test('AGENTS.md and CLAUDE.md mirror the transport reliability section verbatim', async () => {
